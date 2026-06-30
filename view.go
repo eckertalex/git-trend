@@ -15,6 +15,9 @@ func (m tuiModel) View() string {
 	h := m.panelHeight()
 	left := m.renderLeft(h)
 	right := m.renderChartPanel(h)
+	if m.rightView == viewAuthor {
+		right = m.renderAuthorPanel(h)
+	}
 	main := lipgloss.JoinHorizontal(lipgloss.Top, left, right) + "\n" + m.renderFooter()
 	if m.mode == modeMenu {
 		return placeOverlay(main, m.renderMenu(), m.width, m.height)
@@ -25,18 +28,21 @@ func (m tuiModel) View() string {
 func (m tuiModel) renderLeft(h int) string {
 	innerW := leftPanelWidth - 2
 
+	// In the author view the profile panel is the active context, so neither left
+	// box draws a focused border (the authors list still shows its selection).
+	chartFocus := m.rightView == viewChart
+
 	const tfInnerH = 4 // 2-line compact delegate × 2 items, no spacing
-	tfBox := m.renderBox("Time range", m.timeRangeList.View(), boxTimeFrames, innerW, tfInnerH)
+	tfBox := m.renderBox("Time range", m.timeRangeList.View(), chartFocus && m.focusedBox == boxTimeFrames, innerW, tfInnerH)
 
 	authInnerH := m.authorsPanelHeight()
 	authTitle := fmt.Sprintf("Authors %d/%d", m.usedSeriesCount(), maxSeries)
-	authBox := m.renderBox(authTitle, m.authorsList.View(), boxAuthors, innerW, authInnerH)
+	authBox := m.renderBox(authTitle, m.authorsList.View(), chartFocus && m.focusedBox == boxAuthors, innerW, authInnerH)
 
 	return lipgloss.NewStyle().Width(leftPanelWidth).Height(h).Render(authBox + "\n" + tfBox)
 }
 
-func (m tuiModel) renderBox(title, content string, idx, innerW, innerH int) string {
-	focused := m.focusedBox == idx
+func (m tuiModel) renderBox(title, content string, focused bool, innerW, innerH int) string {
 	s := borderNormal
 	if focused {
 		s = borderFocused
@@ -100,6 +106,25 @@ func (m tuiModel) renderChartPanel(h int) string {
 	return strings.Join(lines, "\n")
 }
 
+// renderAuthorPanel wraps the scrollable profile viewport in a focused, titled box.
+func (m tuiModel) renderAuthorPanel(h int) string {
+	innerW := m.chartWidth() // matches the viewport width set in sizeAuthorViewport
+	innerH := h - 2
+
+	body := m.authorVP.View()
+	if m.detailView == "" {
+		body = styleDim.Render("No commits for this author.")
+	}
+
+	rendered := borderFocused.Width(innerW).Height(innerH).Render(body)
+	lines := strings.Split(rendered, "\n")
+	if len(lines) > 0 {
+		name, _ := parseNameEmail(m.detailAuthor)
+		lines[0] = titleBorderLine(name, innerW, true, colorFocus)
+	}
+	return strings.Join(lines, "\n")
+}
+
 func (m tuiModel) renderFooter() string {
 	if m.mode == modeAddAuthor {
 		prompt := styleBold.Render("add:") + " " + m.authorInput.View() +
@@ -125,26 +150,38 @@ func (m tuiModel) renderFooter() string {
 	if m.loading && m.chartView != "" {
 		parts = append(parts, styleDim.Render(m.spinner.View()+" refreshing…"))
 	}
-	switch m.focusedBox {
-	case boxAuthors:
+	if m.rightView == viewAuthor {
 		parts = append(parts,
+			hintKeys("j/k", "switch author"),
+			hintKeys("ctrl+u/d", "scroll"),
 			hint(keys.Add),
 			hint(keys.Delete),
-			hintCustom(keys.Total, "total "+onOff(m.showTotal)),
-			hint(keys.Top),
-			hint(keys.Web),
-			hint(keys.Help),
+			hintCustom(keys.Esc, "back"),
 			hint(keys.Quit),
 		)
-	case boxTimeFrames:
-		parts = append(parts,
-			hint(keys.Select),
-			hint(keys.Since),
-			hint(keys.Until),
-			hint(keys.Delete),
-			hint(keys.Help),
-			hint(keys.Quit),
-		)
+	} else {
+		switch m.focusedBox {
+		case boxAuthors:
+			parts = append(parts,
+				hintCustom(keys.Select, "details"),
+				hint(keys.Add),
+				hint(keys.Delete),
+				hintCustom(keys.Total, "total "+onOff(m.showTotal)),
+				hint(keys.Top),
+				hint(keys.Web),
+				hint(keys.Help),
+				hint(keys.Quit),
+			)
+		case boxTimeFrames:
+			parts = append(parts,
+				hint(keys.Select),
+				hint(keys.Since),
+				hint(keys.Until),
+				hint(keys.Delete),
+				hint(keys.Help),
+				hint(keys.Quit),
+			)
+		}
 	}
 	left := strings.Join(parts, sep)
 	right := styleDim.Render(Version)
@@ -160,6 +197,10 @@ func hint(b key.Binding) string {
 
 func hintCustom(b key.Binding, desc string) string {
 	return styleBold.Render(b.Help().Key) + " " + desc
+}
+
+func hintKeys(keyStr, desc string) string {
+	return styleBold.Render(keyStr) + " " + desc
 }
 
 func onOff(on bool) string {

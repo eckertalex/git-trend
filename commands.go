@@ -12,6 +12,13 @@ type commitsMsg struct {
 	err     error
 }
 
+// allCommitsMsg carries the unfiltered commit history. The author profile is
+// built from this so it stays author-centric and ignores the since/until range.
+type allCommitsMsg struct {
+	commits []Commit
+	err     error
+}
+
 type currentUserMsg struct {
 	identity string
 	err      error
@@ -28,6 +35,13 @@ func fetchCommits(since, until string) tea.Cmd {
 	return func() tea.Msg {
 		commits, err := Log(Options{Since: since, Until: until})
 		return commitsMsg{commits, err}
+	}
+}
+
+func fetchAllCommits() tea.Cmd {
+	return func() tea.Msg {
+		commits, err := Log(Options{})
+		return allCommitsMsg{commits, err}
 	}
 }
 

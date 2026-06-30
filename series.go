@@ -43,11 +43,7 @@ func Build(commits []Commit, opts BuildOptions) (Chart, error) {
 
 	width := max(opts.Width, 2)
 
-	sorted := make([]Commit, len(commits))
-	copy(sorted, commits)
-	sort.Slice(sorted, func(i, j int) bool {
-		return sorted[i].When.Before(sorted[j].When)
-	})
+	sorted := sortByTime(commits)
 
 	start := sorted[0].When
 	end := sorted[len(sorted)-1].When
@@ -188,6 +184,17 @@ func groupByAuthor(commits []Commit) []authorGroup {
 		groups = append(groups, authorGroup{label: id, commits: byIdent[id]})
 	}
 	return groups
+}
+
+// sortByTime returns a copy of commits ordered oldest-first, leaving the input
+// untouched.
+func sortByTime(commits []Commit) []Commit {
+	sorted := make([]Commit, len(commits))
+	copy(sorted, commits)
+	sort.Slice(sorted, func(i, j int) bool {
+		return sorted[i].When.Before(sorted[j].When)
+	})
+	return sorted
 }
 
 func sampleTimes(start, end time.Time, n int) []time.Time {

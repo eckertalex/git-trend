@@ -68,7 +68,13 @@ func (m tuiModel) handleMenuKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case key.Matches(msg, keys.Select):
 		if m.menuCursor < len(entries) {
 			m.mode = modeNormal
-			return m.handleKey(bindingKeyMsg(entries[m.menuCursor].binding))
+			synthetic := bindingKeyMsg(entries[m.menuCursor].binding)
+			// Route through the active view's handler so the author profile stays
+			// in sync (handleAuthorKey re-anchors/exits after delegating).
+			if m.rightView == viewAuthor {
+				return m.handleAuthorKey(synthetic)
+			}
+			return m.handleKey(synthetic)
 		}
 	}
 	return m, nil

@@ -144,6 +144,160 @@ func TestHelpMenuOpenClose(t *testing.T) {
 	}
 }
 
+func TestAuthorDrillInAndBack(t *testing.T) {
+	m := newTestModel()
+	m = sendCommits(m, testCommits())
+
+	// Authors box is focused by default; enter drills into the selected author.
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m = updated.(tuiModel)
+	if m.rightView != viewAuthor {
+		t.Fatalf("expected viewAuthor after enter, got %v", m.rightView)
+	}
+
+	view := m.View()
+	if !strings.Contains(view, "Activity") {
+		t.Errorf("expected 'Activity' section in profile, got:\n%s", view)
+	}
+	if !strings.Contains(view, "example.com") {
+		t.Errorf("expected author email in profile, got:\n%s", view)
+	}
+
+	// Esc returns to the chart.
+	updated, _ = m.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	m = updated.(tuiModel)
+	if m.rightView != viewChart {
+		t.Fatalf("expected viewChart after esc, got %v", m.rightView)
+	}
+	if m.detailAuthor != "" {
+		t.Errorf("expected detailAuthor cleared after esc, got %q", m.detailAuthor)
+	}
+}
+
+func TestAuthorDrillInSwitch(t *testing.T) {
+	m := newTestModel()
+	m = sendCommits(m, testCommits())
+
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m = updated.(tuiModel)
+	first := m.detailAuthor
+
+	// 'j' moves the list selection; the profile follows without leaving the view.
+	updated, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("j")})
+	m = updated.(tuiModel)
+	if m.rightView != viewAuthor {
+		t.Fatalf("expected to stay in viewAuthor after 'j', got %v", m.rightView)
+	}
+	if m.detailAuthor == first {
+		t.Errorf("expected detailAuthor to change after 'j', still %q", first)
+	}
+}
+
+func TestAuthorViewAddOpensInput(t *testing.T) {
+	m := newTestModel()
+	m = sendCommits(m, testCommits())
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m = updated.(tuiModel)
+
+	// 'a' must still open the add-author input from within the author view.
+	updated, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("a")})
+	m = updated.(tuiModel)
+	if m.mode != modeAddAuthor {
+		t.Fatalf("expected modeAddAuthor after 'a' in author view, got %v", m.mode)
+	}
+}
+
+func TestAuthorViewDeleteFollowsSelection(t *testing.T) {
+	m := newTestModel()
+	m = sendCommits(m, testCommits())
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m = updated.(tuiModel)
+	first := m.detailAuthor
+
+	// 'd' removes the viewed author; the profile follows to the next selection.
+	updated, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("d")})
+	m = updated.(tuiModel)
+	if m.rightView != viewAuthor {
+		t.Fatalf("expected to remain in author view after delete, got %v", m.rightView)
+	}
+	if m.detailAuthor == first {
+		t.Errorf("expected profile to move off the deleted author %q", first)
+	}
+}
+
+func TestAuthorViewMenuClearExits(t *testing.T) {
+	m := newTestModel()
+	m = sendCommits(m, testCommits())
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m = updated.(tuiModel)
+
+	// Open the help menu from the author view.
+	updated, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("?")})
+	m = updated.(tuiModel)
+	if m.mode != modeMenu {
+		t.Fatalf("expected modeMenu after '?', got %v", m.mode)
+	}
+
+	// Navigate to "Clear all authors" (index 3) and select it. Routing through
+	// handleAuthorKey must then exit the author view since no authors remain.
+	for i := 0; i < 3; i++ {
+		updated, _ = m.Update(tea.KeyMsg{Type: tea.KeyDown})
+		m = updated.(tuiModel)
+	}
+	updated, _ = m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m = updated.(tuiModel)
+	if m.rightView != viewChart {
+		t.Errorf("expected to exit author view after clearing authors via menu, got %v", m.rightView)
+	}
+}
+
+func TestAuthorProfileIgnoresDateRange(t *testing.T) {
+	m := newTestModel()
+	// The chart sees only a narrow date-filtered slice...
+	narrow := testCommits()[:6]
+	m = sendCommits(m, narrow)
+	// ...but the full history (no date filter) is the complete set.
+	full := testCommits()
+	updated, _ := m.Update(allCommitsMsg{commits: full})
+	m = updated.(tuiModel)
+
+	updated, _ = m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m = updated.(tuiModel)
+
+	// Alice has 4 commits in the narrow window but 20 across full history; the
+	// profile must report the full-history figure.
+	if !strings.Contains(m.detailView, "20 (67% of repo)") {
+		t.Errorf("expected full-history stats (20 of 30) in profile, got:\n%s", m.detailView)
+	}
+}
+
+func TestAuthorProfileScroll(t *testing.T) {
+	m := newTestModel()
+	m.height = 12 // force the profile body to overflow the viewport
+	m.authorsList.SetSize(leftPanelWidth-2, m.authorsPanelHeight())
+	m = sendCommits(m, testCommits())
+
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m = updated.(tuiModel)
+	if m.authorVP.YOffset != 0 {
+		t.Fatalf("expected fresh profile scrolled to top, got YOffset=%d", m.authorVP.YOffset)
+	}
+
+	// ctrl+d scrolls the profile down.
+	updated, _ = m.Update(tea.KeyMsg{Type: tea.KeyCtrlD})
+	m = updated.(tuiModel)
+	if m.authorVP.YOffset == 0 {
+		t.Fatalf("expected YOffset > 0 after ctrl+d")
+	}
+
+	// ctrl+u scrolls back up.
+	updated, _ = m.Update(tea.KeyMsg{Type: tea.KeyCtrlU})
+	m = updated.(tuiModel)
+	if m.authorVP.YOffset != 0 {
+		t.Errorf("expected YOffset back to 0 after ctrl+u, got %d", m.authorVP.YOffset)
+	}
+}
+
 func TestQuitViaQ(t *testing.T) {
 	tm := teatest.NewTestModel(t, newTestModel())
 	tm.Send(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("q")})

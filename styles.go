@@ -33,3 +33,13 @@ var palette = []lipgloss.AdaptiveColor{
 }
 
 var maxSeries = len(palette)
+
+// heatScale maps a contribution-graph intensity bucket (0 = no commits, 4 =
+// busiest) to a color, mirroring GitHub's green ramp.
+var heatScale = []lipgloss.AdaptiveColor{
+	{Light: "#ebedf0", Dark: "#2d333b"}, // empty
+	{Light: "#9be9a8", Dark: "#0e4429"}, // low
+	{Light: "#40c463", Dark: "#006d32"},
+	{Light: "#30a14e", Dark: "#26a641"},
+	{Light: "#216e39", Dark: "#39d353"}, // high
+}

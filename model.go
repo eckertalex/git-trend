@@ -6,6 +6,7 @@ import (
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/textinput"
+	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 )
 
@@ -15,6 +16,16 @@ const (
 	boxAuthors    = 0
 	boxTimeFrames = 1
 	numBoxes      = 2
+)
+
+// rightView selects what the right panel shows: the aggregate chart or a single
+// author's profile. The author view has its own key handler, so it is a distinct
+// interaction context rather than a focus target.
+type rightView int
+
+const (
+	viewChart rightView = iota
+	viewAuthor
 )
 
 const (
@@ -46,6 +57,13 @@ type tuiModel struct {
 	pendingTopFill bool
 	since          string
 	until          string
+
+	fullCommits     []Commit            // unfiltered history; powers the author profile
+	commitsByAuthor map[string][]Commit // fullCommits indexed by identity
+	rightView       rightView
+	detailAuthor    string // identity label of the drilled-in author
+	detailView      string // cached rendered author-page body ("" = empty state)
+	authorVP        viewport.Model
 
 	repoName string
 
@@ -110,12 +128,13 @@ func newTUIModel(opts BuildOptions, since, until string) tuiModel {
 		spinner:        sp,
 		authorsList:    newList(nil, 3),
 		timeRangeList:  tr,
+		authorVP:       viewport.New(0, 0),
 		repoName:       repoName(),
 	}
 }
 
 func (m tuiModel) Init() tea.Cmd {
-	return tea.Batch(fetchCommits(m.since, m.until), m.spinner.Tick)
+	return tea.Batch(fetchCommits(m.since, m.until), fetchAllCommits(), m.spinner.Tick)
 }
 
 func (m tuiModel) chartWidth() int {

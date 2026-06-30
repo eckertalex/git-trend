@@ -20,6 +20,7 @@ func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width = msg.Width
 		m.height = msg.Height
 		m.authorsList.SetSize(leftPanelWidth-2, m.authorsPanelHeight())
+		m.sizeAuthorViewport()
 		m.recompute()
 		return m, nil
 
@@ -43,6 +44,18 @@ func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 		m.recompute()
+		return m, nil
+
+	case allCommitsMsg:
+		if msg.err != nil {
+			// Without the full history the profile can only use the filtered set;
+			// surface that rather than silently showing range-limited stats.
+			m.statusMsg = "warning: couldn't load full history; author profiles limited to the current range"
+			return m, nil
+		}
+		m.fullCommits = msg.commits
+		m.commitsByAuthor = groupCommitsByIdent(msg.commits)
+		m.rebuildAuthorDetail()
 		return m, nil
 
 	case spinner.TickMsg:
@@ -95,6 +108,9 @@ func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case modeMenu:
 			return m.handleMenuKey(msg)
 		default:
+			if m.rightView == viewAuthor {
+				return m.handleAuthorKey(msg)
+			}
 			return m.handleKey(msg)
 		}
 	}
@@ -158,6 +174,7 @@ func (m *tuiModel) recompute() {
 
 	m.syncTimeRange()
 	m.chartView = m.renderChart()
+	m.rebuildAuthorDetail()
 }
 
 // renderChart builds and renders the chart for the current series, returning it

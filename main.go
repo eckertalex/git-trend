@@ -58,6 +58,16 @@ func main() {
 	fs.StringVar(&f.since, "since", "", "only include commits after this date (e.g. \"2 weeks ago\")")
 	fs.StringVar(&f.until, "until", "", "only include commits before this date")
 	fs.Var(&f.authors, "author", "author name/email substring to plot (repeatable)")
+
+	// Short aliases mirror the in-TUI keybindings.
+	fs.Var(&f.authors, "a", "shorthand for --author")
+	fs.BoolVar(&f.me, "m", false, "shorthand for --me")
+	fs.BoolVar(&f.showTotal, "T", false, "shorthand for --total")
+	fs.BoolVar(&f.showTop, "t", false, "shorthand for --top")
+	fs.BoolVar(&f.web, "w", false, "shorthand for --web")
+	fs.StringVar(&f.export, "e", "", "shorthand for --export")
+	fs.StringVar(&f.since, "s", "", "shorthand for --since")
+	fs.StringVar(&f.until, "u", "", "shorthand for --until")
 	fs.Parse(os.Args[1:])
 
 	if *showVersion {

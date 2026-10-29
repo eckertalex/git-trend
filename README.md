@@ -74,10 +74,24 @@ git trend --web
 git trend --export report.html --author alice --author bob
 ```
 
-## Installation
+## Build
+
+`build.sh` builds into `build/`. No make, no build system.
 
 ```sh
-make build       # ./bin/git-trend
-make install     # to ~/.local/bin (override with INSTALL_DIR=)
-make uninstall
+./build.sh                  # debug, build/git-trend
+./build.sh release          # optimized and stripped
+./build.sh run -- --web     # build and run in one step
+./build.sh test
 ```
+
+Needs: Go from `.tool-versions`.
+
+## Install
+
+```sh
+./build.sh release
+cp build/git-trend ~/.local/bin/
+```
+
+`~/.local/bin` needs to be on your `PATH`. To uninstall, delete the binary.

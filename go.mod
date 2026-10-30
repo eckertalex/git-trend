@@ -1,6 +1,6 @@
 module github.com/eckertalex/git-trend
 
-go 1.26.4
+go 1.27.3
 
 require (
 	github.com/NimbleMarkets/ntcharts v0.5.1

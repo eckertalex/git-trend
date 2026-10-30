@@ -184,7 +184,7 @@ func (m tuiModel) renderFooter() string {
 		}
 	}
 	left := strings.Join(parts, sep)
-	right := styleDim.Render(Version)
+	right := styleDim.Render(BUILD_VERSION)
 	leftWidth := lipgloss.Width(left)
 	rightWidth := lipgloss.Width(right)
 	padding := max(m.width-leftWidth-rightWidth, 1)

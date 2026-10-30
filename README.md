@@ -60,7 +60,8 @@ git trend --export chart.html                      # write HTML chart to file
 | `--until`   | Only count commits before this date.                                              |
 | `--web`     | Open an interactive HTML chart in the browser (writes to a temp file in $TMPDIR). |
 | `--export`  | Write the HTML chart to PATH (use `--web` to also open it).                       |
-| `--version` | Print the version and exit.                                                       |
+
+`git trend help` prints the usage and `git trend version` the version.
 
 `--since` and `--until` accept any date git understands: `"2 weeks ago"`,
 `"2024-01-01"`, `"last month"`, etc.
@@ -76,12 +77,12 @@ git trend --export report.html --author alice --author bob
 
 ## Build
 
-`build.sh` builds into `build/`. No make, no build system.
+`build.sh` builds into `build/`.
 
 ```sh
 ./build.sh                  # debug, build/git-trend
 ./build.sh release          # optimized and stripped
-./build.sh run -- --web     # build and run in one step
+./build/git-trend --web      # run what you built
 ./build.sh test
 ```
 

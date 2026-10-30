@@ -1,74 +1,25 @@
 #!/bin/sh
+# usage: ./build.sh [debug|release|test]
 set -eu
 
 cd "$(dirname "$0")"
 
-# --- Arguments ---------------------------------------------------------------
-mode="debug"
-action="build"
-
-while [ "$#" -gt 0 ]; do
-    case "$1" in
-        debug|release) mode="$1" ;;
-        build|run|test) action="$1" ;;
-        --)
-            shift
-            break
-            ;;
-        *)
-            echo "usage: $0 [debug|release] [build|run|test] [-- args...]" >&2
-            exit 2
-            ;;
-    esac
-    shift
-done
-
-if [ "$action" != "run" ] && [ "$#" -gt 0 ]; then
-    echo "error: program arguments require the 'run' action" >&2
-    exit 2
+git_hash=""
+if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    git_hash="$(git describe --always --dirty --exclude '*')"
 fi
-
-# --- Actions -----------------------------------------------------------------
-case "$action" in
-    test)
-        exec go test -v -race ./...
+flags=""
+ldflags="-X main.BUILD_GIT_HASH=$git_hash"
+case "${1:-debug}" in
+    debug) ;;
+    release) flags="-trimpath" ldflags="$ldflags -s -w -X main.BUILD_DEBUG=false" ;;
+    test) exec go test -v ./... ;;
+    *)
+        echo "usage: $0 [debug|release|test]" >&2
+        exit 2
         ;;
 esac
 
-# --- Version -----------------------------------------------------------------
-version="$(git describe --abbrev=0 --tags --always 2>/dev/null || echo unknown)"
-
-# --- Flags -------------------------------------------------------------------
-build_debug=""
-build_release="-trimpath"
-
-linker_common="-X main.Version=$version"
-linker_debug=""
-linker_release="-s -w"
-
-# --- Choose Flags ------------------------------------------------------------
-case "$mode" in
-    debug)
-        echo "[debug mode]" >&2
-        build_flags="$build_debug"
-        linker_flags="$linker_common $linker_debug"
-        ;;
-    release)
-        echo "[release mode]" >&2
-        build_flags="$build_release"
-        linker_flags="$linker_common $linker_release"
-        ;;
-esac
-
-# --- Vet ---------------------------------------------------------------------
-# Go's version of -Wall, so every build runs it
 go vet ./...
-
-# --- Build -------------------------------------------------------------------
 mkdir -p build
-env CGO_ENABLED=0 go build $build_flags "-ldflags=$linker_flags" -o build/git-trend .
-
-# --- Run ---------------------------------------------------------------------
-if [ "$action" = "run" ]; then
-    exec ./build/git-trend "$@"
-fi
+CGO_ENABLED=0 go build $flags -ldflags="$ldflags" -o build/git-trend .

@@ -11,7 +11,27 @@ import (
 	"golang.org/x/term"
 )
 
-var Version = "v0.0.0"
+const (
+	BUILD_NAME    = "git-trend"
+	BUILD_VERSION = "0.2.0"
+)
+
+var (
+	BUILD_GIT_HASH = ""
+	BUILD_DEBUG    = "true"
+)
+
+// git-trend version 0.2.0+8b30b7a-dirty (debug)
+func buildVersionFull() string {
+	s := BUILD_NAME + " version " + BUILD_VERSION
+	if BUILD_GIT_HASH != "" {
+		s += "+" + BUILD_GIT_HASH
+	}
+	if BUILD_DEBUG == "true" {
+		s += " (debug)"
+	}
+	return s
+}
 
 type stringList []string
 
@@ -49,7 +69,19 @@ type cliFlags struct {
 func main() {
 	var f cliFlags
 	fs := flag.NewFlagSet("git-trend", flag.ExitOnError)
-	showVersion := fs.Bool("version", false, "print the version and exit")
+	fs.Usage = func() {
+		fmt.Fprint(fs.Output(), `Usage: git-trend [flags] [command]
+
+Commands:
+  help
+  version
+
+No command: plot commit trends.
+
+Flags:
+`)
+		fs.PrintDefaults()
+	}
 	fs.BoolVar(&f.me, "me", false, "include the current git user as a separate line")
 	fs.BoolVar(&f.showTotal, "total", false, "include a cumulative line for total commits")
 	fs.BoolVar(&f.showTop, "top", false, "plot the top contributors")
@@ -70,9 +102,20 @@ func main() {
 	fs.StringVar(&f.until, "u", "", "shorthand for --until")
 	fs.Parse(os.Args[1:])
 
-	if *showVersion {
-		fmt.Println("git-trend", Version)
-		return
+	if args := fs.Args(); len(args) > 0 {
+		switch args[0] {
+		case "help":
+			fs.SetOutput(os.Stdout)
+			fs.Usage()
+			return
+		case "version":
+			fmt.Println(buildVersionFull())
+			return
+		default:
+			fmt.Fprintf(os.Stderr, "unknown command: %s\n\n", args[0])
+			fs.Usage()
+			os.Exit(2)
+		}
 	}
 
 	if err := exec.Command("git", "rev-parse", "--git-dir").Run(); err != nil {
